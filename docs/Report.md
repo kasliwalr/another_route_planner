@@ -34,6 +34,7 @@ The purpose of this project is build a GUI application like google-maps. This is
 Since, it is a reasonably complex undertaking, we will do it in parts and this report will reflect that. 
 
 [comment]: <> (This is a comment, it will not be included). 
+
 Also, 
 
 ## Background
