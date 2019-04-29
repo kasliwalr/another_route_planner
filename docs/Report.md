@@ -30,7 +30,7 @@
     
 
 ## Introduction
-The purpose of this project is build a GUI application like google-maps. This is a very simple version of Google-Maps, we we allow the user to select a city in the world and find walkable/drivable routes between a starting and destination location. Since, it is a reasonably complex undertaking, we will do it in parts and this report will reflect that. 
+The purpose of this project is build a GUI application like google-maps. This is a very simple version of Google-Maps, we we allow the user to select a city in the world and find walkable/drivable routes between a starting and destination location. [//]<>(Since, it is a reasonably complex undertaking, we will do it in parts and this report will reflect that. )
 
 ## Background
 
