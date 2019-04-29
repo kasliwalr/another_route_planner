@@ -35,8 +35,6 @@ Since, it is a reasonably complex undertaking, we will do it in parts and this r
 
 [comment]: <> (This is a comment, it will not be included). 
 
-Also, 
-
 ## Background
 
 This version of the project is built upon an existing demonstration of an experimental 2D input/output library for C++ - [IO2D](http://open-std.org/JTC1/SC22/WG21/docs/papers/2016/p0267r0.pdf) for short. This demonstration uses the IO2D library to render the map onto the screen. To accomplish this Michael Kazakov has used some 3<sup>rd</sup> libraries and written ~800 lines custom code in C++. He has detailed the basic ideas very nicely [here](https://kazakov.life/2018/06/07/io2d-demo-maps/). Since I will be extending his custom code, I will revisit them in detail below
