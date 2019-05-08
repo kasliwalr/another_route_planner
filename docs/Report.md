@@ -1,17 +1,14 @@
 # Route Planner
 
-## TOC
+## Table Of Contents
 - [Introduction](#introduction)
 - [Background](#background)
-  - [Downloading OSM XML](#downloading-osm-xml)
-    - [What is OSM XML?](#what-is-osm-xml)
-    - [How is OSM XML downloaded?](#how-is-osm-xml-downloaded)
-  - [Parsing OSM XML](#parsing-osm-xml)
-    - [What is PUGIXML?](#what-is-pugixml)
-    - [How is parsed OSM XML stored?](#how-is-parsed-osm-xml-stored)
-  - [Rendering the Model](#rendering-the-model)
-    - [IO2D API](#io2d-api)
- - [Installing the Demo](#installing-the-demo)
+  - [OpenStreetMap Database](#openstreetmap-database)
+    - [OpenStreetMap API - Accessing the Database](#openstreetmap-api---accessing-the-database)
+    - [OSM-XML Database File - What is inside?](#osm-xml-database-file---what-is-inside)
+  - [Map Rendering](#map-rendering)
+    - [Parsing OSM-XML - Building the Model for Rendering](#parsing-osm-xml---building-the-model-for-rendering)
+    - [IO2D API - Rendering the Model](#io2d-api---rendering-the-model)
  - [Requirements](#requirements)
  - [Design](#design)
    - [Architecture](#architecture)
@@ -28,22 +25,86 @@
  - [Future Directions](#future-directions)
      
     
-
 ## Introduction
 
-//TODO: application and advantages, why do this? learning opportuntiies, general applications. 
-
-The purpose of this project is build a GUI application like google-maps. This is a very simple version of Google-Maps, we we allow the user to select a city in the world and find walkable/drivable routes between a starting and destination location. Since, it is a reasonably complex undertaking, we will do it in parts and this report will reflect that. 
+I am excited to talk about this project. This is version 1 of **another_route_planner**, and as the name suggests it will find a route for going from point A to point B on a given map. You should not expect it to work like google maps, its a very basic application with no GUI interactivity. Nevertheless, it contains all the basic technologies that are used in map  building and route finding. I will discuss those in the **background** section. I will then describe the **requirements**, these will serve as a roadmap, and later iterations of this project will suitably incorporate them. The **design** section describes the software architecture, design rationale, software-partioning into modules and algorithm details. When algorithms used are not custom, I will simply refer you to the relevant sources, only limiting myself to describe the parameters of interest. I will then layout system analysis results in **results**, these would include both performance and accuracy (loosely related to verification and validation). Finally, some future direction, mostly minor tweaks or improvements as we are dealing with major changes in other versions of **another_route_planner**. 
 
 ## Background
 
-This version of the project is built upon an existing demonstration of an experimental 2D input/output library for C++ - [IO2D](http://open-std.org/JTC1/SC22/WG21/docs/papers/2016/p0267r0.pdf) for short. This demonstration uses the IO2D library to render the map onto the screen. To accomplish this Michael Kazakov has used some 3<sup>rd</sup> libraries and written ~800 lines custom code in C++. He has detailed the basic ideas very nicely [here](https://kazakov.life/2018/06/07/io2d-demo-maps/). Since I will be extending his custom code, I will revisit them in detail below
+Route planning is an extremely useful practical application. You see example of its use everywhere in today's world. Route planning is required for getting from point A to B is fastest or cheapeast way as might be the goal of a taxi try to get a customer from home to a train station. Most New York taxi drivers remembered it in their heads and knew the shortest route from A to B anywhere in New York. Some really good ones, even remember which route to take when given the traffic at different times of the day. Initially GPS and now Google maps has changed that. Now anybody with access of mobile phone can go from point A to B using the best possible route - even taking into account traffic conditions. How has it become possible?
+The ability to locate your position on earth using GPS (or other technologies), availability of high quality maps of places/roads/highways that precisely tell where everything is on earth (in terms of GPS coordinates) and graph algorithms which find the best routes and in fastest possible time on this large dataset (NYC zipped OSM-XML data file is [147MB](https://download.bbbike.org/osm/bbbike/NewYork/) and possibly contains millions of nodes and edges). 
+
+
+OK, so we are all excited to solve this practical problem! But where do we start. There are three fundamental things that any hand-rolled route planner must do. 
+
+1. Get the data. Talk to some database and get the high quality map data which tells you about roads, highways, lakes, buildings and all sorts of things. This data sets are very rich information sources and one must understand them reasonably well to take their full advantage. 
+2. Render the map onto your screen (PC or mobile phone). You need to use some graphics library for this, there are tons of them for different systems. Since I am a Linux PC user, I will focus on those available for Linux PC. You may choose to represent only certain information that is available in the data base file. Whether or not you choose to include all data you need to convert map data into graphical objects to be rendered.
+3. Develop a graph data structure that represents the map for purposes of navigation and the apply suitable graph algorithms to solve you routing problem. 
+
+Let me lay out my choice for tackling the above 3 steps. I will use the [OpenStreetMap](https://www.openstreetmap.org/about) database for the simple reason that it is free and well maintained. I will use the experimental 2D IO library for C++, [IO2D](http://open-std.org/JTC1/SC22/WG21/docs/papers/2016/p0267r0.pdf) for rendering the map onto the screen. Let me be honest and say that these two choices came with the nice [IO2D demo](https://kazakov.life/2018/06/07/io2d-demo-maps/) by Michael Kazakov with ~800 lines of additional code on top of IO2D and 3<sup>rd</sup> libraries such as Boost and PUGIXML. In later versions, I might experiment with something new, nevertheless it might be fun to extend this demo to add some interactivity. My third choice involves the majority of design and implementation work done by me. I will detail the custom graph class and A\* search algorithm implementation to achieve route calculation. 
 
 The basic flow of the demo is as follows
 1. Download the OSM XML data from OpenStreetMap server using a http get call. 
 2. Parse the downloaded XML file using 3<sup>rd</sup> [pugixml](https://pugixml.org/)
 3. Convert the parsed XML to custom model representation. 
 4. Render the model using IO2D API
+
+
+### OpenStreetMap Database
+
+From OpenStreetMap foundation website - "OpenStreetMap is an initiative to create and provide free geographic data, such as street maps, to anyone." I will skip over the nobel foundations of this foundation (no pun intended), you are free to go their [website]() and learn more and get to [How to get the data part](https://wiki.osmfoundation.org/wiki/How_To_Get_OpenStreetMap_Data). I will focus on two aspect, how to properly ask for data and the tools used to do that in context of this project and second, once we get the data - how to use that information, again for our purpose of rendering streets/building etc. 
+
+#### OpenStreetMap API - Accessing the Database
+You can get the data different ways. 
+1. **Planet dumps**: These are files containing planet-wide map data available in OSM-XML or Planet-PBF format. They are updated weekly and can be accessed [here](). You could download them and then parse them suitably to obtain region specific information but beware, these are huge - 76GB of compressed OSM-XML file or 45GB of compressed Planel-PBF file. 
+
+2. **OverPass API**: Defined by them as "a read-only API that serves up custom selected parts of the OSM map data. It acts as a database over the web: the client sends a query to the API and gets back the data set that corresponds to the query." This sounds more like it, I only need to obtain a small region's data at a time. However, I would need to use a network connection to obtain that data. The demo as used [OSM Editing API v0.6](https://wiki.openstreetmap.org/wiki/API_v0.6). 
+
+
+
+**OSM Editing API** is a RESTful API, which means that we can make http GET/SET/PUT etc requests to it. We compose a GET request by defining the host - "api.openstreetmap.org"  and resource identifier "/api/0.6/map?bbox=longMin, latMin, longMax, latMax" for accessing all osm data within the rectangular bounding box defined by gps coordinates in decimal form. 
+
+Just to test it, I used the `wget` utility on my machine, to download the data into a file `target.osm` like so
+
+```
+wget -O target.osm https://api.openstreetmap.org/api/0.6/map?bbox=8.81598,47.22277,8.83,47.23
+```
+The data is returned in [OSM-XML](https://wiki.openstreetmap.org/wiki/OSM_XML) format. Here is snippet of the `target.osm` file. Notice that it is in XML. 
+
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="CGImap 0.6.1 (24071 thorn-01.openstreetmap.org)" copyright="OpenStreetMap and contributors" attribution="http://www.openstreetmap.org/copyright" license="http://opendatacommons.org/licenses/odbl/1-0/">
+ <bounds minlat="47.2227700" minlon="8.8159800" maxlat="47.2300000" maxlon="8.8300000"/>
+ <node id="26033718" visible="true" version="3" changeset="13977066" timestamp="2012-11-21T23:57:28Z" user="dbrgn" uid="317694" lat="47.2225565" lon="8.8156618"/>
+ <node id="26034189" visible="true" version="15" changeset="14838901" timestamp="2013-01-29T19:30:00Z" user="Schnupfix" uid="72918" lat="47.2283761" lon="8.8170414"/>
+ <node id="26034190" visible="true" version="15" changeset="14838901" timestamp="2013-01-29T19:30:00Z" user="Schnupfix" uid="72918" lat="47.2281306" lon="8.8163280"/>
+ <node id="26034191" visible="true" version="16" changeset="14838901" timestamp="2013-01-29T19:30:01Z" user="Schnupfix" uid="72918" lat="47.2275740" lon="8.8139556"/>
+ <node id="26034192" visible="true" version="15" changeset="6667030" timestamp="2010-12-15T12:31:10Z" user="zwis" uid="177149" lat="47.2271008" lon="8.8119896"/>
+ <node id="26034193" visible="true" version="17" changeset="44195121" timestamp="2016-12-05T23:16:30Z" user="Sal73x" uid="1293386" lat="47.2269186" lon="8.8114864"/>
+ <node id="26034194" visible="true" version="16" changeset="13977066" timestamp="2012-11-21T23:57:28Z" user="dbrgn" uid="317694" lat="47.2267289" lon="8.8117687"/>
+ <node id="26034195" visible="true" version="16" changeset="13977066" timestamp="2012-11-21T23:57:28Z" user="dbrgn" uid="317694" lat="47.2262120" lon="8.8133895"/>
+ <node id="29773941" visible="true" version="4" changeset="14043290" timestamp="2012-11-26T11:13:00Z" user="SimonPoole" uid="92387" lat="47.2266415" lon="8.8184177">
+  <tag k="highway" v="traffic_signals"/>
+ </node>
+```
+
+There are a number of way to work with a restful API. In our case, IO2D demo uses a custom wrapper atop [Boost.Beast](https://www.boost.org/doc/libs/develop/libs/beast/doc/html/index.html) networking library to make the http requests for OSM map database. I will not into the specifics of that except the fact that it establishes a connection with the OSM data server, makes GET request to obtain in response OSM data as XML, converts OSM-XML into byte buffer and then keep it in memory until further use. Next we learn, how to parse this OSM-XML database file. 
+
+
+#### OSM-XML Database File - What is inside?
+
+
+
+### Map Rendering
+
+
+#### Parsing OSM-XML - Building the Model for Rendering
+
+
+
+#### IO2D API - Rendering the Model
+
+
 
 ### Downloading OSM XML
 
@@ -96,98 +157,6 @@ If one wants to render a particular feature on the screen, one would first need 
 
 // TODO
 
-## Installing the Demo
-1. Download the complete reference implementation from the repository
-```
->git clone https://github.com/cpp-io2d/P0267_RefImpl.git
->git branch
-*master
-> tree -l .
-├── appveyor.yml
-├── BUILDING.md
-├── cmake
-├── CMakeLists.txt
-├── CONSUMING.md
-├── Debug
-├── Design questions.md
-├── LICENSE.md
-├── P0267_RefImpl
-├── README.md
-├── temp
-└── TODO.md
-
-3 directories, 9 files
-```
-2. This demo has a lot of dependencies both system and third party. Detailed instructions are provided in the contained `BUILDING.md`. I will take you through specific instructions relevant for my machine which is an Ubuntu 16.04 LTS
-
-- IO2D employs CMake as the build system. I upgraded to the cmake version 3.14 to make sure I don't have any problems. Please do so. 
-```
-> cmake --version
-
-cmake version 3.14.2
-
-CMake suite maintained and supported by Kitware (kitware.com/cmake).
-```
-- two variables must be set to control the configuration process of cmake. 
-1. `IO2D_DEFAULT`: Controls a selection of default backend which is used when non-template symbols from std::experimental::io2d, like "brush" or "surface", are referenced. There're 5 backends in this RefImpl:
-  * CAIRO_WIN32
-  * CAIRO_XLIB
-  * CAIRO_SDL2
-  * COREGRAPHICS_MAC
-  * COREGRAPHICS_IOS
-
-  If no default backend was defined, the build script will try to automatically set an appropriate Cairo backend based on the host environment. I did not set this, it automatically selected the default for my system (linux)
-  
-2. `IO2D_ENABLED`: Specifies a list of enabled backends, which means a set of backends included in the build process.
-By default, a value of IO2D_DEFAULT is used, so this variable can be left undefined. If, however, you want to have a multi-backend configuration of IO2D, this variable has to contain a valid list, for instance: "COREGRAPHICS_MAC;CAIRO_XLIB".
-I did not set this either, it took the correct `IO2D_DEFAULT` value
-
-There we other variables to control build of examples in Samples folder. I did not changes this, so it build all of the samples. ideally, modify it so that only Samples/maps is built. It will save you time when you start making changes to maps and building it, you don't want other samples to be build every time.
-
-3. Install a fresh version of libc++. Downloaded a fresh build from [here](http://releases.llvm.org/6.0.0/clang+llvm-6.0.0-x86_64-apple-darwin.tar.xz)
-```
-> cd ~/
-> cp ~/Downloads/clang+llvm-6.0.0-x86_64-apple-darwin.tar.xz ~/
-> tar -xvf clang+llvm-6.0.0-x86_64-apple-darwin.tar.xz
-> export CXXFLAGS="-nostdinc++ -isystemNEWPATH/include/c++/v1"
-> export LDFLAGS="-LNEWPATH/lib -Wl,-rpath,NEWPATH/lib"
-```
-Export appropriate CXX and LD flags to make clang use this version of the standard library (replace NEWPATH with a path of extracted archive contents)
-
-4. CMake scripts expect cairo and graphmagick to be installed. Install those. 
-```
-> sudo apt-get update
-> sudo apt-get install g++-7 build-essential
-> sudo apt-get install libcairo2-dev
-> sudo apt-get install libgraphicsmagick1-dev
-> sudo apt-get install libpng-dev
-```
-5. Install boost: Follow the instruction [here](https://www.boost.org/doc/libs/1_70_0/more/getting_started/unix-variants.html). I used the easy build and install option (5.1)
-
-6. Then navigate to the cloned repo and create a Debug folder in it. It will contain the build targets
-```
-> cd ~/P0267_RefImpl
-> mkdir Debug
-> cd Debug
-> cmake -G "Unix Makefiles" --config Debug "-DCMAKE_BUILD_TYPE=Debug" ../.
-Default IO2D backend was not specified, choosing automatically...
-Found Linux, using CAIRO_XLIB.
--- Configuring done
--- Generating done
--- Build files have been written to: /home/rk/Downloads/P0267_RefImpl/Debug
-> make
-```
-The final make will put an executable named `map` in `Debug/P026_RefImpl/Samples/maps` folder. 
-
-7. Run the demo
-```
-> cd ~/P0267_RefImpl/Debug/P0267_RefImpl/Samples/maps
-> ./maps -b -73.9866,40.7635,-73.9613,40.777
-Downloading OpenStreetMap data for the following bounding box: -73.9866,40.7635,-73.9613,40.7775
-```
-A window with the following map of central park is printed
-
-![central park](images/map_v1_0.png)
 
 ## Requirements
 //TODO
